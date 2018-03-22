@@ -57,10 +57,10 @@ class GameSimulator:
                 img.append([1]*action_len)
             else:
                 img.append([0]*action_len)
-        img = np.array(img)
-        img = img.reshape([height,width,channel+1])
+        img_with_action = np.array(img)
+        img_with_action = img_with_action.reshape([height,width,channel+1])
 
-        return img
+        return img_with_action
     
     def get_action_size(self):
         # 获取动作数目
