@@ -47,6 +47,7 @@ class GameSimulator:
         width = self.resolution[1]
         channel = self.resolution[2]
         img = img.reshape([height*width*channel])
+        img = list(img)
         action_space = height*width
         action_len = action_space//len(self.actions)
         action_remain = action_space%len(self.actions)
@@ -56,6 +57,7 @@ class GameSimulator:
                 img.append([1]*action_len)
             else:
                 img.append([0]*action_len)
+        img = np.array(img)
         img = img.reshape([height,width,channel+1])
 
         return img
