@@ -51,12 +51,13 @@ class GameSimulator:
         action_space = height*width
         action_len = action_space//len(self.actions)
         action_remain = action_space%len(self.actions)
-        img.append([0]*action_remain)
+        img = img + ([0]*action_remain)
         for i in range(len(self.actions)):
             if(i==self.last_action):
-                img.append([1]*action_len)
+                img = img + ([1]*action_len)
             else:
-                img.append([0]*action_len)
+                img = img + ([0]*action_len)
+#        print(img)
         img_with_action = np.array(img)
         img_with_action = img_with_action.reshape([height,width,channel+1])
 
