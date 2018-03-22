@@ -11,24 +11,24 @@ from Agent import Agent
 from GameSimulator import GameSimulator
 
 # to choose gpu
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
 FRAME_REPEAT = 4 # How many frames 1 action should be repeated
 UPDATE_FREQUENCY = 4 # How many actions should be taken between each network update
 COPY_FREQUENCY = 1000
 
-RESOLUTION = (80, 45, 3) # Resolution
+RESOLUTION = (80, 45, 4) # Resolution
 BATCH_SIZE = 32 # Batch size for experience replay
 LEARNING_RATE = 0.001 # Learning rate of model
 GAMMA = 0.99 # Discount factor
 
-MEMORY_CAP = 100000 # Amount of samples to store in memory
+MEMORY_CAP = 200000 # Amount of samples to store in memory
 
 EPSILON_MAX = 1 # Max exploration rate
 EPSILON_MIN = 0.05 # Min exploration rate
 EPSILON_DECAY_STEPS = 2e5 # How many steps to decay from max exploration to min exploration
 
-RANDOM_WANDER_STEPS = 0 # How many steps to be sampled randomly before training starts
+RANDOM_WANDER_STEPS = 200000 # How many steps to be sampled randomly before training starts
 
 TRACE_LENGTH = 8 # How many traces are used for network updates
 HIDDEN_SIZE = 768 # Size of the third convolutional layer when flattened
@@ -40,19 +40,15 @@ EPISODE_TO_WATCH = 10 # How many episodes to watch after training is complete
 
 TAU = 0.99 # How much the target network should be updated towards the online network at each update
 
-LOAD_MODEL = True # Load a saved model?
+LOAD_MODEL = False # Load a saved model?
 SAVE_MODEL = True # Save a model while training?
 SKIP_LEARNING = False # Skip training completely and just watch?
 
+max_model_savefile = "train_data/max_model/max_model.ckpt"
 model_savefile = "train_data/model.ckpt" # Name and path of the model
 reward_savefile = "train_data/Rewards.txt"
 
 ##########################################
-
-def preprocess(img):
-    img = skimage.transform.resize(img,RESOLUTION, mode='constant')
-    img = img.astype(np.float32)
-    return img
 
 def updateTargetGraph(tfVars,tau):
     total_vars = len(tfVars)
@@ -82,7 +78,7 @@ gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.33)
 SESSION = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 if LOAD_MODEL:
-    EPSILON_MAX = 0.05 # restart after 20+ epoch
+    EPSILON_MAX = 0.25 # restart after 20+ epoch
 
 agent = Agent(memory_cap = MEMORY_CAP, batch_size = BATCH_SIZE, resolution = RESOLUTION, action_count = ACTION_COUNT,
             session = SESSION, lr = LEARNING_RATE, gamma = GAMMA, epsilon_min = EPSILON_MIN, trace_length=TRACE_LENGTH,
@@ -109,12 +105,15 @@ if not SKIP_LEARNING:
     updateTarget(targetOps, SESSION)
 
     agent.reset_cell_state()
-    state = preprocess(game.get_state())
+    state = game.get_state()
     for _ in range(RANDOM_WANDER_STEPS):
-        action = agent.random_action()
+        if not LOAD_MODEL:
+            action = agent.random_action()
+        else:
+            action = agent.act(game.get_last_action(), state)
         img_state, reward, done = game.make_action(action)
         if not done:
-            state_new = preprocess(img_state)
+            state_new = img_state
         else:
             state_new = None
 
@@ -124,7 +123,9 @@ if not SKIP_LEARNING:
         if done:
             game.reset()
             agent.reset_cell_state()
-            state = preprocess(game.get_state())
+            state = game.get_state()
+
+    max_avgR = -10000.0
 
     for epoch in range(EPOCHS):
         print("\n\nEpoch %d\n-------" % (epoch + 1))
@@ -134,13 +135,13 @@ if not SKIP_LEARNING:
         for games_cnt in range(GAMES_PER_EPOCH):
             game.reset()
             agent.reset_cell_state()
-            state = preprocess(game.get_state())
+            state = game.get_state()
             while True:
                 learning_step += 1
                 action = agent.act(state)
                 img_state, reward, done = game.make_action(action)
                 if not done:
-                    state_new = preprocess(img_state)
+                    state_new = img_state
                 else:
                     state_new = None
                 agent.add_transition(state, action, reward, state_new, done)
@@ -165,7 +166,7 @@ if not SKIP_LEARNING:
             game.reset()
             agent.reset_cell_state()
             while not game.is_terminared():
-                state = preprocess(game.get_state())
+                state = game.get_state()
                 action = agent.act(state, train=False)
                 game.make_action(action)
             test_scores.append(game.get_total_reward())
@@ -178,8 +179,9 @@ if not SKIP_LEARNING:
             saveScore(test_scores.mean())
             saver.save(SESSION, model_savefile)
             print("Saving the network weigths to:", model_savefile)
-            if epoch % (EPOCHS/5) == 0 and epoch is not 0:
-                saver.save(SESSION, model_savefile, global_step=epoch)
+            if test_scores.mean() > max_avgR:
+                max_avgR = test_scores.mean()
+                saver.save(SESSION, max_model_savefile)
 
         print("Total ellapsed time: %.2f minutes" % ((time() - time_start) / 60.0))
 '''

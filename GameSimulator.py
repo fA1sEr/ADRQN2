@@ -11,6 +11,7 @@ class GameSimulator:
         self.resolution = resolution
         self.actions = []
         self.rewards = 0.0
+        self.last_action = 0
         
     def initialize(self, visiable=False, rom=b'pong.bin'):
         # 初始化游戏，返回游戏的动作数目
@@ -41,6 +42,22 @@ class GameSimulator:
         #img = img.reshape([self.screen_height, self.screen_width])
         # 如果进行预处理
         if preprocess: img = self.__preprocess(img)
+        # add action to 4th channel
+        height = self.resolution[0]
+        width = self.resolution[1]
+        channel = self.resolution[2]
+        img = img.reshape([height*width*channel])
+        action_space = height*width
+        action_len = action_space//len(self.actions)
+        action_remain = action_space%len(self.actions)
+        img.append([0]*action_remain)
+        for i in range(len(self.actions)):
+            if(i==self.last_action):
+                img.append([1]*action_len)
+            else:
+                img.append([0]*action_len)
+        img = img.reshape([height,width,channel+1])
+
         return img
     
     def get_action_size(self):
@@ -57,6 +74,7 @@ class GameSimulator:
         new_state = self.get_state()
         done = self.is_terminared()
         self.rewards += reward
+        self.last_action = action
         return new_state, reward, done
     
     def is_terminared(self):
